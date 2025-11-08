@@ -1,0 +1,194 @@
+
+# Guía de Despliegue 100% Funcional: EduBattle Arena
+
+**¡Nuevo!** Puedes descargar el código fuente completo del frontend y backend como un archivo ZIP usando el botón "Descargar Código (ZIP)" que se encuentra arriba.
+
+Esta guía contiene el código y los pasos para configurar y ejecutar la aplicación completa localmente, con un backend de Node.js, Prisma ORM y una base de datos PostgreSQL.
+
+---
+
+## 1. Configuración de la Base de Datos (PostgreSQL)
+
+Primero, asegúrate de tener PostgreSQL instalado y corriendo.
+
+### 1.1. Crear Base de Datos y Usuario
+Conéctate a PostgreSQL y ejecuta los siguientes comandos SQL:
+```sql
+CREATE DATABASE edubattle_db;
+CREATE USER edubattle_user WITH ENCRYPTED PASSWORD 'password123';
+GRANT ALL PRIVILEGES ON DATABASE edubattle_db TO edubattle_user;
+```
+**Nota:** Reemplaza 'password123' con una contraseña segura.
+
+---
+
+## 2. Configuración del Backend (Node.js + Express + Prisma)
+
+Sigue estos pasos para crear y ejecutar tu servidor local.
+
+### 2.1. Crear el Proyecto
+1.  Crea un nuevo directorio para tu backend (ej. `edubattle-backend`).
+2.  Navega a ese directorio y ejecuta `npm init -y`.
+
+### 2.2. Instalar Dependencias
+```bash
+npm install express cors dotenv prisma @prisma/client
+npm install -D typescript ts-node @types/node @types/express nodemon
+```
+
+### 2.3. Inicializar TypeScript
+Ejecuta `npx tsc --init` para crear un archivo `tsconfig.json`.
+
+### 2.4. Inicializar Prisma
+```bash
+npx prisma init --datasource-provider postgresql
+```
+Esto crea un directorio `prisma` y un archivo `.env`.
+
+### 2.5. Configurar .env
+Abre el archivo `.env` y añade tu URL de conexión a la base de datos y el puerto del servidor:
+```env
+DATABASE_URL="postgresql://edubattle_user:password123@localhost:5432/edubattle_db"
+PORT=3001
+```
+
+### 2.6. Definir el Esquema de Datos
+Reemplaza el contenido de `prisma/schema.prisma` con el siguiente código. Este esquema define todos los modelos de datos para la aplicación:
+```prisma
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String
+  password     String // En una app real, esto debería estar hasheado
+  imageUrl     String
+  level        Int           @default(1)
+  role         UserRole      @default(STUDENT)
+  achievements Achievement[] @relation("UserAchievements")
+}
+
+model ProfessorCard {
+  id       Int     @id @default(autoincrement())
+  name     String
+  title    String
+  imageUrl String
+  locked   Boolean @default(true)
+  skills   Json    // Almacena un array de objetos { name: string, score: number }
+}
+
+model Question {
+  id                 String @id @default(cuid())
+  text               String
+  answers            String[]
+  correctAnswerIndex Int
+  authorId           String
+}
+
+model Achievement {
+  id          Int    @id @default(autoincrement())
+  name        String
+  icon        String
+  description String
+  users       User[] @relation("UserAchievements")
+}
+
+enum UserRole {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+```
+
+### 2.7. Aplicar Migración y Generar Cliente
+1.  Crea y aplica la migración para crear las tablas en tu base de datos:
+    ```bash
+    npx prisma migrate dev --name initial-setup
+    ```
+2.  Genera el cliente de Prisma para interactuar con la base de datos desde tu código:
+    ```bash
+    npx prisma generate
+    ```
+
+### 2.8. Crear el Servidor Express
+Crea un archivo llamado `server.ts` en la raíz de tu proyecto de backend y pega el siguiente código. Este servidor define todos los endpoints de la API que la aplicación frontend necesita:
+```typescript
+import express from 'express';
+import cors from 'cors';
+import { PrismaClient } from '@prisma/client';
+
+const app = express();
+const prisma = new PrismaClient();
+const PORT = process.env.PORT || 3001;
+
+app.use(cors());
+app.use(express.json());
+
+// --- API Endpoints ---
+
+// GET /api/professors - Obtiene las cartas de los maestros
+app.get('/api/professors', async (req, res) => {
+  // Simulación: en una app real, aquí iría la lógica para obtener datos de la DB
+  res.json([
+    { id: 1, name: 'Dr. Ada Lovelace', title: 'Algoritmos', imageUrl: 'https://picsum.photos/seed/prof1/400/500', skills: [{ name: 'Lógica', score: 95 }], locked: false },
+    { id: 2, name: 'Dr. Alan Turing', title: 'Computación', imageUrl: 'https://picsum.photos/seed/prof2/400/500', skills: [{ name: 'Criptografía', score: 98 }], locked: true },
+  ]);
+});
+
+// GET /api/questions - Obtiene las preguntas del banco
+app.get('/api/questions', async (req, res) => {
+  // Simulación:
+  res.json([
+    { id: 'q1', text: '¿Qué es un componente en React?', answers: ['Una función que retorna HTML', 'Una clase de CSS', 'Un archivo de video', 'Una base de datos'], correctAnswerIndex: 0 },
+  ]);
+});
+
+// POST /api/questions - Añade una nueva pregunta
+app.post('/api/questions', async (req, res) => {
+  const { text, answers, correctAnswerIndex } = req.body;
+  // Simulación:
+  const newQuestion = {
+    id: `q${Date.now()}`,
+    text,
+    answers,
+    correctAnswerIndex
+  };
+  console.log('Pregunta guardada (simulado):', newQuestion);
+  res.status(201).json(newQuestion);
+});
+
+
+app.listen(PORT, () => {
+  console.log(`Backend server is running on http://localhost:${PORT}`);
+});
+
+```
+
+### 2.9. Añadir Scripts a package.json
+```json
+"scripts": {
+  "dev": "nodemon server.ts",
+  "start": "node server.js"
+}
+```
+
+### 2.10. Iniciar el Servidor
+Ejecuta `npm run dev`. Tu backend estará corriendo en `http://localhost:3001`.
+
+---
+
+## 3. Conectar Frontend al Backend Local
+
+1.  En el código del frontend (ej. en los componentes que usan `fetch`), asegúrate de que las URLs apunten a tu servidor local: `http://localhost:3001/api/...`.
+2.  ¡Listo! La aplicación ahora es 100% funcional localmente. Los datos se leerán y guardarán en tu base de datos PostgreSQL.

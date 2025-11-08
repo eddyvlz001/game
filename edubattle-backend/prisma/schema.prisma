@@ -1,0 +1,161 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum QuestionDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum GameMode {
+  INDIVIDUAL
+  GROUP
+}
+
+enum AccessMethod {
+  CODE
+  QR
+  BOTH
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String
+  password     String
+  imageUrl     String        @default("https://picsum.photos/seed/default/200/200")
+  level        Int           @default(1)
+  experience   Int           @default(0)
+  role         UserRole      @default(STUDENT)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  
+  // Relationships
+  questions    Question[]    @relation("QuestionAuthor")
+  achievements Achievement[] @relation("UserAchievements")
+  student      Student?
+  
+  @@map("users")
+}
+
+model ProfessorCard {
+  id       Int     @id @default(autoincrement())
+  name     String
+  title    String
+  imageUrl String
+  locked   Boolean @default(true)
+  skills   Json    // Almacena un array de objetos { name: string, score: number }
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("professor_cards")
+}
+
+model Question {
+  id                 String            @id @default(cuid())
+  text               String
+  answers            String[]
+  correctAnswerIndex Int
+  difficulty         QuestionDifficulty @default(MEDIUM)
+  category           String            @default("General")
+  authorId           String
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  
+  // Relationships
+  author User @relation("QuestionAuthor", fields: [authorId], references: [id])
+  
+  @@map("questions")
+}
+
+model Achievement {
+  id          Int    @id @default(autoincrement())
+  name        String
+  icon        String // ionicon name
+  description String
+  points      Int    @default(10)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relationships
+  users User[] @relation("UserAchievements")
+  
+  @@map("achievements")
+}
+
+model Student {
+  id       String @id @default(cuid())
+  name     String
+  level    Int    @default(1)
+  imageUrl String @default("https://picsum.photos/seed/student/100/100")
+  userId   String @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("students")
+}
+
+model CustomModule {
+  id           String       @id @default(cuid())
+  name         String
+  icon         String       // ionicon name
+  role         UserRole
+  gameMode     GameMode
+  accessMethod AccessMethod
+  enabled      Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  
+  @@map("custom_modules")
+}
+
+model BattleSession {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  hostId        String
+  name          String
+  status        String   @default("waiting") // waiting, active, finished
+  maxPlayers    Int      @default(4)
+  currentPlayers Int     @default(1)
+  questions     String[] // Array of question IDs
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@map("battle_sessions")
+}
+
+model UserBattleStats {
+  id              String   @id @default(cuid())
+  userId          String
+  totalGames      Int      @default(0)
+  wins            Int      @default(0)
+  losses          Int      @default(0)
+  totalQuestions  Int      @default(0)
+  correctAnswers  Int      @default(0)
+  experience      Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([userId])
+  @@map("user_battle_stats")
+}
